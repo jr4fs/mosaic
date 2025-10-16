@@ -1,0 +1,42 @@
+/* assets/style.css - small subset of your previous CSS, plus current-pill style */
+.stSidebar .nav-btn > button {
+    width: 100% !important;
+    text-align: left;
+    padding: 10px 12px !important;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.7), rgba(250,250,252,0.7));
+    box-shadow: 0 6px 18px rgba(2,6,23,0.04);
+    font-weight: 600;
+    border: 1px solid rgba(15,23,42,0.06);
+    height: 56px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px;
+    padding-left: 14px !important;
+}
+.stSidebar .nav-btn > button:hover {
+    transform: translateX(6px);
+    transition: transform 0.12s ease;
+    box-shadow: 0 10px 26px rgba(2,6,23,0.06);
+}
+.sidebar-header { font-size:14px; font-weight:700; margin-bottom:6px; }
+.sidebar-sub { font-size:12px; color:#6b7280; margin-bottom:14px; }
+
+/* current-pill */
+.current-pill {
+    display:inline-block;
+    background: linear-gradient(90deg,#6366f1,#3b82f6);
+    color:white !important;
+    padding:6px 10px;
+    border-radius:999px;
+    font-weight:700;
+}
+
+/* main card look (used inside screens) */
+.main-card {
+    padding: 18px;
+    background: linear-gradient(180deg,#fff,#fbfbff);
+    border-radius:10px;
+    box-shadow:0 10px 30px rgba(2,6,23,0.04);
+}
