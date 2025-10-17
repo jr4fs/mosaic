@@ -97,7 +97,8 @@ This allows case managers to efficiently characterize progress metrics for their
 ## Novelty
 
 > [arXiv:2508.18541](https://arxiv.org/abs/2508.18541)
-
+The novelty of our agentic framework for LM-assisted codebook development lies in adapting a traditionally social science–driven process: manual codebook creation, into a human-in-the-loop pipeline. Unlike static annotation pipelines, our framework allows experts to provide feedback only on predictions likely to be incorrect, dramatically reducing manual effort while preserving interpretability. The system incorporates specialized agents that work collaboratively through ensemble prediction, critique-and-verify mechanisms, and on-the-fly evaluation, ensuring robustness across different data types and use cases.
+ By capitalizing on LM failure modes for context engineering, the framework continuously improves performance and reliability over time. Lastly, our framework is specifically designed for **social services, an underserved market and population, **this approach paves the way for distributed, tool-enabled workflows that align with how case managers actually operate in practice. Please see https://arxiv.org/abs/2508.18541 for precise details about the algorithm and how it was adapted for development for this hackathon. 
 
 ---
 
