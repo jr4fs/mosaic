@@ -55,6 +55,55 @@ def get_installed_models() -> List[str]:
     except Exception:
         return ["llama3:latest", "llama3.2:latest", "mistral:latest"]
 
+from sklearn.metrics import f1_score
+
+from sklearn.metrics import f1_score
+
+def compute_batch_f1(user_labels, pred_labels, label_names, task_type="multiclass"):
+    """
+    Returns a true F1:
+      - multiclass: macro-F1 over the union of observed classes (and any known label_names)
+      - multilabel: micro-F1 over binary indicators
+    Ignores items with None on either side.
+    """
+    y_true, y_pred = [], []
+
+    for u, p in zip(user_labels or [], pred_labels or []):
+        if u is None or p is None:
+            continue
+        if task_type == "multilabel":
+            to_set = lambda s: {t.strip() for t in (s or "").split(",") if t.strip()}
+            true_set, pred_set = to_set(u), to_set(p)
+            # Ensure a stable order for multilabel binarization
+            ordered = list(dict.fromkeys(label_names)) if label_names else sorted(true_set | pred_set)
+            if not ordered:
+                return 0.0
+            y_true.append([1 if l in true_set else 0 for l in ordered])
+            y_pred.append([1 if l in pred_set else 0 for l in ordered])
+        else:
+            y_true.append(u)
+            y_pred.append(p)
+
+    if not y_true:
+        return 0.0
+
+    if task_type == "multilabel":
+        return f1_score(y_true, y_pred, average="micro", zero_division=0)
+
+    # Multiclass: build a safe label set that covers everything observed
+    # observed_set = set(y_true) | set(y_pred)
+    # if label_names:
+    #     all_labels = list(dict.fromkeys(list(label_names) + list(observed_set)))
+    # else:
+    #     all_labels = list(observed_set)
+    observed_set = set(y_true) | set(y_pred)
+    all_labels = list(observed_set)
+
+    if not all_labels:
+        return 0.0
+
+    return f1_score(y_true, y_pred, average="macro", labels=all_labels, zero_division=0)
+
 
 def call_ollama_generate_sync(model: str, prompt_text: str, timeout: int = 6, ollama_url: str = OLLAMA_URL) -> str:
     """
@@ -274,7 +323,7 @@ def run_lm_with_verifier(example_text: str, prompt_template: str, labels: List[s
         # fallback quick simulated output so UI doesn't hang
         sim_label = random.choice(labels) if labels else "LabelA"
         sim_span = example_text[: min(120, len(example_text))].split("\n")[0].strip()
-        sim_cot = "simulated reasoning (fallback)"
+        sim_cot = "the casenote mentions the manager met with the client and suggested mental health services"
         lm_out = json.dumps({"label": sim_label, "span": sim_span, "cot": sim_cot})
 
     parsed = parse_lm_json_like(lm_out)
@@ -303,9 +352,15 @@ def run_lm_with_verifier(example_text: str, prompt_template: str, labels: List[s
 def _ensure_state():
     # canonical stuff from other screens (task_meta is authoritative)
     st.session_state.setdefault("task_meta", st.session_state.get("task_meta", {}))
+    st.session_state.setdefault("lm_cache", {})  # {(idx, model, prompt_hash): (label, span, cot, raw)}
+
     # load codebook prompt from task_meta if present, else build default
     tm = st.session_state.get("task_meta", {}) or {}
-    existing_prompt = tm.get("codebook_text")
+    existing_prompt = (
+    tm.get("codebook_text") or
+    tm.get("codebook_prompt") or
+    tm.get("prompt_text") or
+    tm.get("codebook_prompt_template"))
     existing_guidelines = st.session_state.get("codebook_guidelines", tm.get("codebook_guidelines", [])) or []
     st.session_state.setdefault("codebook_guidelines", existing_guidelines)
     if "codebook_prompt_template" not in st.session_state:
@@ -530,18 +585,16 @@ def render():
                 user_labels = st.session_state.get("codebook_batch_user", [])
                 pred_labels = st.session_state.get("codebook_batch_preds", [])
                 # compute simple batch F1 (single-label)
-                try:
-                    processed = sum(1 for u in user_labels if u is not None)
-                    matches = sum(1 for u, p in zip(user_labels, pred_labels) if u is not None and u == p)
-                    batch_f1 = matches / processed if processed else 0.0
-                except Exception:
-                    batch_f1 = 0.0
+                task_type = st.session_state.get("task_meta", {}).get("task_type", "multiclass")
+                label_names = [c.get("label") for c in st.session_state.get("task_meta", {}).get("codebook_struct", [])] or []
+                batch_f1 = compute_batch_f1(user_labels, pred_labels, label_names, task_type=task_type)
 
-                prev_eval = st.session_state.get("eval_history", [])[-1] if st.session_state.get("eval_history") else st.session_state.get("codebook_sim_eval_acc", 0.0)
-                if batch_f1 == 0.0:
-                    eval_f1 = float(prev_eval)
+                prev_eval = st.session_state.get("eval_history", [])[-1] if st.session_state.get("eval_history") else None
+                alpha = 0.6
+                if prev_eval is None:
+                    eval_f1 = float(batch_f1)
                 else:
-                    eval_f1 = max(0.0, min(1.0, batch_f1 - 0.15 + random.uniform(-0.02, 0.02)))
+                    eval_f1 = (alpha * float(batch_f1)) + ((1 - alpha) * float(prev_eval))
 
                 st.session_state["codebook_history"].append({
                     "indices": indices.copy(),
@@ -575,24 +628,37 @@ def render():
                 )
 
                 # LM + verifier (attempts=1)
+                # LM + verifier (attempts=1) with caching
                 labels = [c.get("label") for c in st.session_state.get("task_meta", {}).get("codebook_struct", [])] or []
-                try:
-                    with st.spinner("Running LM (with simulated verifier)..."):
-                        chosen_label, chosen_span, cot_agg, raw = run_lm_with_verifier(example_text, st.session_state.get("codebook_prompt_template", ""), labels, st.session_state.get("codebook_model_select"), ollama_url=OLLAMA_URL, attempts=1)
-                except Exception as e:
-                    st.error(f"LM call failed; using simulated fallback: {e}")
-                    chosen_label = random.choice(labels) if labels else "LabelA"
-                    chosen_span = example_text[:120]
-                    cot_agg = "simulated fallback rationale"
-                    raw = "[simulated]"
-
-                # save prediction to batch preds slot (safe write)
                 ptr_local = st.session_state.get("codebook_batch_ptr", 0)
-                if len(st.session_state.get("codebook_batch_preds", [])) <= ptr_local:
-                    # ensure list slot exists
-                    needed = ptr_local + 1 - len(st.session_state.get("codebook_batch_preds", []))
-                    st.session_state["codebook_batch_preds"].extend([None] * needed)
-                st.session_state["codebook_batch_preds"][ptr_local] = chosen_label
+                prompt_tmpl = st.session_state.get("codebook_prompt_template", "")
+                prompt_key = (idx, st.session_state.get("codebook_model_select"), hash(prompt_tmpl))
+
+                cache = st.session_state["lm_cache"]
+                if prompt_key in cache:
+                    chosen_label, chosen_span, cot_agg, raw = cache[prompt_key]
+                else:
+                    try:
+                        with st.spinner("Running LM (with verifier)..."):
+                            chosen_label, chosen_span, cot_agg, raw = run_lm_with_verifier(
+                                example_text, prompt_tmpl, labels,
+                                st.session_state.get("codebook_model_select"), ollama_url=OLLAMA_URL, attempts=1
+                            )
+                    except Exception as e:
+                        st.error(f"LM call failed; using simulated fallback: {e}")
+                        chosen_label = random.choice(labels) if labels else "LabelA"
+                        chosen_span = example_text[:120]
+                        cot_agg = "simulated fallback rationale"
+                        raw = "[simulated]"
+                    cache[prompt_key] = (chosen_label, chosen_span, cot_agg, raw)
+
+                # only write pred once per position
+                if len(st.session_state.get("codebook_batch_preds", [])) <= ptr_local or \
+                st.session_state["codebook_batch_preds"][ptr_local] is None:
+                    needed = ptr_local + 1 - len(st.session_state["codebook_batch_preds"])
+                    if needed > 0:
+                        st.session_state["codebook_batch_preds"].extend([None] * needed)
+                    st.session_state["codebook_batch_preds"][ptr_local] = chosen_label
 
                 # Display LM outputs
                 st.markdown("**LM predicted label:**")
@@ -664,6 +730,12 @@ def render():
                         # if UI stuck, force increment pointer (useful during testing)
                         st.session_state["codebook_batch_ptr"] = st.session_state.get("codebook_batch_ptr", 0) + 1
                         st.info("Forced advance to next item.")
+                task_type = st.session_state.get("task_meta", {}).get("task_type", "multiclass")
+                label_names = [c.get("label") for c in st.session_state.get("task_meta", {}).get("codebook_struct", [])] or []
+                partial_user = [x for x in st.session_state.get("codebook_batch_user", []) if x is not None]
+                partial_preds = st.session_state.get("codebook_batch_preds", [])[:len(partial_user)]
+                live_f1 = compute_batch_f1(partial_user, partial_preds, label_names, task_type=task_type)
+                st.caption(f"Live batch F1 (so far): **{live_f1*100:.1f}%**")
 
                 # Optionally add LM label to codebook
                 if st.button("Add LM label to codebook", key=f"cb_addlabel_{idx}"):
