@@ -98,11 +98,6 @@ This allows case managers to efficiently characterize progress metrics for their
 
 > [arXiv:2508.18541](https://arxiv.org/abs/2508.18541)
 
-The novelty of this idea lies in transforming **case documentation** from a static record-keeping task into a **dynamic learning system** that evolves with every client interaction.
-
-By adapting the *expert-in-the-loop codebook development* paradigm—originally designed for research annotation—to the social services domain, the system bridges **human empathy** and **machine consistency**.
-
-It continuously refines how case managers identify risk, prioritize interventions, and connect clients to resources.
 
 ---
 
