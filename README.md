@@ -106,8 +106,6 @@ It continuously refines how case managers identify risk, prioritize intervention
 
 ---
 
-## Market Size & Potential
-
 ### Potential for TAM Expansion
 
 Beyond homelessness services, this system can be adapted for other domains requiring human-guided text interpretation, such as:
