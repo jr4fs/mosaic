@@ -88,7 +88,7 @@ Our system introduces a **human-in-the-loop algorithm** where experts iterativel
 5. **Evaluator** → Periodically measures performance on held-out expert data.  
    - If the F₁ score exceeds a target threshold, the process stops.  
 
-This **agentified loop — generate, verify, synthesize, and evaluate —** efficiently converts expert feedback into refined annotation guidelines, reducing manual codebook development from **weeks to hours**.
+This **agentified loop, generate, verify, synthesize, and evaluate, ** efficiently converts expert feedback into refined annotation guidelines, reducing manual codebook development from **weeks to hours**.
 
 This allows case managers to efficiently characterize progress metrics for their clients, enabling **data-driven decision-making** and more **targeted interventions**.
 
