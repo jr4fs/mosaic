@@ -57,7 +57,7 @@ With limited analytics or insight generation, they often feel more like **data c
 
 ## Solution
 
-We propose an **AI-guided “Codebook System”** that learns directly from expert reasoning across client interactions.
+We propose an **Agentic Framework for LM-assisted Codebook Development** that learns directly from expert reasoning across client interactions.
 
 Our system dynamically captures how case managers interpret client stories, codifies those insights into shared guidelines, and automatically applies them to future cases.
 
